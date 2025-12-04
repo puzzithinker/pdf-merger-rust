@@ -15,11 +15,31 @@ fn main() {
         .map(|arg| PathBuf::from(arg))
         .collect();
 
-    match merge_pdfs_with_progress(input_paths, output_path, args.len() - 2) {
+    if let Some(err) = validate_inputs(&input_paths) {
+        eprintln!("Error: {}", err);
+        std::process::exit(1);
+    }
+
+    match merge_pdfs_with_progress(input_paths, output_path, args.len() - 2, None) {
         Ok(()) => println!("PDFs merged successfully!"),
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }
     }
+}
+
+fn validate_inputs(paths: &[PathBuf]) -> Option<String> {
+    for path in paths {
+        if !path.exists() {
+            return Some(format!("File not found: {}", path.display()));
+        }
+        if path.metadata().map(|m| m.len()).unwrap_or(0) == 0 {
+            return Some(format!("File is empty: {}", path.display()));
+        }
+        if path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("pdf".to_string()) {
+            return Some(format!("Not a PDF: {}", path.display()));
+        }
+    }
+    None
 }

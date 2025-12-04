@@ -1,1 +1,5 @@
 /target
+/.cargo-target
+/.cargo-target-tmp
+/.tmp
+*.pdf

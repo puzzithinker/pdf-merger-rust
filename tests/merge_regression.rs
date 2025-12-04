@@ -25,7 +25,7 @@ fn merges_single_page_pdfs_without_duplication() {
     let pdf2 = create_single_page_pdf(dir.path(), "2.pdf", "second");
     let output = dir.path().join("merged.pdf");
 
-    merge_pdfs_with_progress(vec![pdf1, pdf2], output.clone(), 2)
+    merge_pdfs_with_progress(vec![pdf1, pdf2], output.clone(), 2, None)
         .expect("merge succeeds");
 
     let merged = lopdf::Document::load(&output).expect("load merged");

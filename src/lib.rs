@@ -1,11 +1,15 @@
 use std::path::PathBuf;
 use lopdf::Document;
 
-pub fn merge_pdfs_with_progress(
+pub fn merge_pdfs_with_progress<F>(
     file_paths: Vec<PathBuf>,
     output_path: PathBuf,
-    _total_files: usize,
-) -> Result<(), String> {
+    total_files: usize,
+    mut on_progress: Option<F>,
+) -> Result<(), String>
+where
+    F: FnMut(usize, usize, &PathBuf) + Send,
+{
     if file_paths.is_empty() {
         return Err("No files to merge.".to_string());
     }
@@ -16,7 +20,7 @@ pub fn merge_pdfs_with_progress(
     let mut all_page_ids = Vec::new();
 
     // Process each PDF file
-    for path in file_paths.iter() {
+    for (idx, path) in file_paths.iter().enumerate() {
         let file_name = path
             .file_name()
             .and_then(|n| n.to_str())
@@ -71,6 +75,10 @@ pub fn merge_pdfs_with_progress(
         // Collect page object IDs in the correct order
         for (_, (obj_id, gen_num)) in page_list {
             all_page_ids.push((obj_id, gen_num));
+        }
+
+        if let Some(cb) = &mut on_progress {
+            cb(idx + 1, total_files, path);
         }
     }
 
@@ -144,7 +152,7 @@ mod tests {
     #[test]
     fn test_merge_pdfs_function_exists() {
         // This test ensures our merge function compiles correctly
-        let _func = merge_pdfs_with_progress;
+        let _func = merge_pdfs_with_progress::<fn(usize, usize, &PathBuf)>;
         assert!(true);
     }
 }

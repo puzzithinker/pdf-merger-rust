@@ -2,11 +2,16 @@
 
 use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, progress_bar, row, scrollable, text, Column};
-use iced::{executor, Application, Command, Element, Length, Settings, Theme};
+use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
 use rfd::FileDialog;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command as StdCommand;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+use parking_lot::Mutex;
 use pdf_merger::merge_pdfs_with_progress;
 
 pub fn main() -> iced::Result {
@@ -33,15 +38,30 @@ enum Message {
     FileSelected(usize),
     MergeComplete(Result<PathBuf, String>),
     OpenOutputLocation,
+    FilesDropped(Vec<PathBuf>),
+    ProgressTick,
 }
 
 struct PdfMergerApp {
-    file_paths: Vec<PathBuf>,
+    files: Vec<FileEntry>,
     selected_index: Option<usize>,
     status: String,
     progress: f32,
     is_merging: bool,
     last_output: Option<PathBuf>,
+    progress_state: Option<Arc<ProgressState>>,
+}
+
+#[derive(Clone)]
+struct FileEntry {
+    path: PathBuf,
+    error: Option<String>,
+}
+
+struct ProgressState {
+    current: AtomicUsize,
+    total: usize,
+    last_file: Mutex<String>,
 }
 
 impl Application for PdfMergerApp {
@@ -53,12 +73,13 @@ impl Application for PdfMergerApp {
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
         (
             Self {
-                file_paths: Vec::new(),
+                files: Vec::new(),
                 selected_index: None,
                 status: "Ready.".to_string(),
                 progress: 0.0,
                 is_merging: false,
                 last_output: None,
+                progress_state: None,
             },
             Command::none(),
         )
@@ -66,6 +87,30 @@ impl Application for PdfMergerApp {
 
     fn title(&self) -> String {
         String::from("PDF Merger")
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        use iced::{event, subscription};
+        let mut subs = Vec::new();
+
+        // File drop handling
+        let drop_sub = subscription::events_with(|event, _status| match event {
+            event::Event::Window(iced::event::WindowEvent::FileDropped(path)) => {
+                Some(Message::FilesDropped(vec![path]))
+            }
+            event::Event::Window(iced::event::WindowEvent::FilesDropped(paths)) => {
+                Some(Message::FilesDropped(paths))
+            }
+            _ => None,
+        });
+        subs.push(drop_sub);
+
+        // Progress polling while merging
+        if self.is_merging {
+            subs.push(iced::time::every(std::time::Duration::from_millis(150)).map(|_| Message::ProgressTick));
+        }
+
+        Subscription::batch(subs)
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
@@ -76,13 +121,7 @@ impl Application for PdfMergerApp {
                     .set_title("Select PDF files")
                     .pick_files()
                 {
-                    let mut added = 0;
-                    for path in paths {
-                        if !self.file_paths.contains(&path) {
-                            self.file_paths.push(path);
-                            added += 1;
-                        }
-                    }
+                    let added = self.add_files(paths);
                     if added > 0 {
                         self.status = format!("Added {} file(s).", added);
                     } else {
@@ -94,11 +133,12 @@ impl Application for PdfMergerApp {
             Message::MoveUp => {
                 if let Some(idx) = self.selected_index {
                     if idx > 0 {
-                        self.file_paths.swap(idx, idx - 1);
+                        self.files.swap(idx, idx - 1);
                         self.selected_index = Some(idx - 1);
                         self.status = format!(
                             "Moved '{}' up.",
-                            self.file_paths[idx - 1]
+                            self.files[idx - 1]
+                                .path
                                 .file_name()
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("file")
@@ -109,12 +149,13 @@ impl Application for PdfMergerApp {
             }
             Message::MoveDown => {
                 if let Some(idx) = self.selected_index {
-                    if idx < self.file_paths.len().saturating_sub(1) {
-                        self.file_paths.swap(idx, idx + 1);
+                    if idx < self.files.len().saturating_sub(1) {
+                        self.files.swap(idx, idx + 1);
                         self.selected_index = Some(idx + 1);
                         self.status = format!(
                             "Moved '{}' down.",
-                            self.file_paths[idx + 1]
+                            self.files[idx + 1]
+                                .path
                                 .file_name()
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("file")
@@ -125,9 +166,9 @@ impl Application for PdfMergerApp {
             }
             Message::MoveTop => {
                 if let Some(idx) = self.selected_index {
-                    if idx > 0 && idx < self.file_paths.len() {
-                        let path = self.file_paths.remove(idx);
-                        self.file_paths.insert(0, path);
+                    if idx > 0 && idx < self.files.len() {
+                        let entry = self.files.remove(idx);
+                        self.files.insert(0, entry);
                         self.selected_index = Some(0);
                         self.status = "Moved file to top.".to_string();
                     }
@@ -136,10 +177,10 @@ impl Application for PdfMergerApp {
             }
             Message::MoveBottom => {
                 if let Some(idx) = self.selected_index {
-                    if idx < self.file_paths.len().saturating_sub(1) {
-                        let path = self.file_paths.remove(idx);
-                        self.file_paths.push(path);
-                        self.selected_index = Some(self.file_paths.len().saturating_sub(1));
+                    if idx < self.files.len().saturating_sub(1) {
+                        let entry = self.files.remove(idx);
+                        self.files.push(entry);
+                        self.selected_index = Some(self.files.len().saturating_sub(1));
                         self.status = "Moved file to bottom.".to_string();
                     }
                 }
@@ -147,16 +188,17 @@ impl Application for PdfMergerApp {
             }
             Message::RemoveSelected => {
                 if let Some(idx) = self.selected_index {
-                    if idx < self.file_paths.len() {
-                        let removed_name = self.file_paths[idx]
+                    if idx < self.files.len() {
+                        let removed_name = self.files[idx]
+                            .path
                             .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("file")
                             .to_string();
-                        self.file_paths.remove(idx);
-                        self.selected_index = if idx > 0 && idx <= self.file_paths.len() {
+                        self.files.remove(idx);
+                        self.selected_index = if idx > 0 && idx <= self.files.len() {
                             Some(idx - 1)
-                        } else if !self.file_paths.is_empty() && idx < self.file_paths.len() {
+                        } else if !self.files.is_empty() && idx < self.files.len() {
                             Some(idx)
                         } else {
                             None
@@ -167,14 +209,19 @@ impl Application for PdfMergerApp {
                 Command::none()
             }
             Message::ClearList => {
-                self.file_paths.clear();
+                self.files.clear();
                 self.selected_index = None;
                 self.status = "Cleared file list.".to_string();
                 Command::none()
             }
             Message::MergePdfs => {
-                if self.file_paths.is_empty() {
+                if self.files.is_empty() {
                     self.status = "Please select at least one PDF file to merge.".to_string();
+                    return Command::none();
+                }
+
+                if let Some(err) = validate_inputs(&self.files.iter().map(|f| f.path.clone()).collect::<Vec<_>>()) {
+                    self.status = err;
                     return Command::none();
                 }
 
@@ -189,11 +236,17 @@ impl Application for PdfMergerApp {
                     self.last_output = None;
                     self.status = "Merging PDFs...".to_string();
 
-                    let files = self.file_paths.clone();
+                    let files: Vec<PathBuf> = self.files.iter().map(|f| f.path.clone()).collect();
                     let output_clone = output_path.clone();
+                    let progress_state = Arc::new(ProgressState {
+                        current: AtomicUsize::new(0),
+                        total: files.len(),
+                        last_file: Mutex::new(String::new()),
+                    });
+                    self.progress_state = Some(progress_state.clone());
                     return Command::perform(
                         async move {
-                            merge_pdfs_async_with_progress(files, output_path).await
+                            merge_pdfs_async_with_progress(files, output_path, Some(progress_state)).await
                         },
                         move |result| Message::MergeComplete(result.map(|_| output_clone)),
                     );
@@ -206,6 +259,7 @@ impl Application for PdfMergerApp {
             }
             Message::MergeComplete(result) => {
                 self.is_merging = false;
+                self.progress_state = None;
                 match result {
                     Ok(path) => {
                         self.progress = 1.0;
@@ -219,6 +273,27 @@ impl Application for PdfMergerApp {
                         self.progress = 0.0;
                         self.last_output = None;
                         self.status = format!("Error: {}", e);
+                    }
+                }
+                Command::none()
+            }
+            Message::FilesDropped(paths) => {
+                let added = self.add_files(paths);
+                if added > 0 {
+                    self.status = format!("Added {} file(s) via drag-and-drop.", added);
+                }
+                Command::none()
+            }
+            Message::ProgressTick => {
+                if let Some(progress) = &self.progress_state {
+                    let total = progress.total as f32;
+                    let current = progress.current.load(Ordering::Relaxed) as f32;
+                    if total > 0.0 {
+                        self.progress = (current / total).min(1.0);
+                    }
+                    let last = progress.last_file.lock().clone();
+                    if !last.is_empty() {
+                        self.status = format!("Processing: {} ({}/{})", last, current as usize, progress.total);
                     }
                 }
                 Command::none()
@@ -240,14 +315,16 @@ impl Application for PdfMergerApp {
         let move_up_enabled = self.selected_index.is_some() && !self.is_merging;
         let move_down_enabled = self.selected_index.is_some()
             && self.selected_index
-                .map(|i| i < self.file_paths.len().saturating_sub(1))
+                .map(|i| i < self.files.len().saturating_sub(1))
                 .unwrap_or(false)
             && !self.is_merging;
         let move_top_enabled = move_up_enabled;
         let move_bottom_enabled = move_down_enabled;
         let remove_enabled = self.selected_index.is_some() && !self.is_merging;
-        let clear_enabled = !self.file_paths.is_empty() && !self.is_merging;
-        let merge_enabled = !self.file_paths.is_empty() && !self.is_merging;
+        let clear_enabled = !self.files.is_empty() && !self.is_merging;
+        let merge_enabled = !self.files.is_empty()
+            && !self.is_merging
+            && self.files.iter().all(|f| f.error.is_none());
 
         let move_up_btn: Element<Message> = if move_up_enabled {
             button("Move Up")
@@ -352,32 +429,42 @@ impl Application for PdfMergerApp {
         .spacing(5)
         .width(Length::Fill);
 
-        let file_list: Column<Message> = if self.file_paths.is_empty() {
+        let file_list: Column<Message> = if self.files.is_empty() {
             Column::new().push(
                 text("No files selected. Click 'Select Files' to add PDFs.")
                     .style(iced::theme::Text::Color(iced::Color::from_rgb(0.6, 0.6, 0.6))),
             )
         } else {
             let mut col = Column::new().spacing(2);
-            for (idx, path) in self.file_paths.iter().enumerate() {
-                let file_name = path
+            for (idx, entry) in self.files.iter().enumerate() {
+                let file_name = entry
+                    .path
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("Unknown file");
-                let size_label = fs::metadata(path)
+                let size_label = fs::metadata(&entry.path)
                     .map(|m| format_size(m.len()))
                     .unwrap_or_else(|_| "-".to_string());
                 let label = format!("#{} {} ({})", idx + 1, file_name, size_label);
                 let is_selected = self.selected_index == Some(idx);
 
-                let file_text = if is_selected {
-                    text(label)
-                        .style(iced::theme::Text::Color(iced::Color::from_rgb(0.2, 0.6, 1.0)))
-                } else {
-                    text(label)
-                };
+                let mut entry_col = column![
+                    text(label).style(if is_selected {
+                        iced::theme::Text::Color(iced::Color::from_rgb(0.2, 0.6, 1.0))
+                    } else {
+                        iced::theme::Text::Color(iced::Color::from_rgb(0.9, 0.9, 0.9))
+                    })
+                ];
 
-                let file_button = button(file_text)
+                if let Some(err) = &entry.error {
+                    entry_col = entry_col.push(
+                        text(err).style(iced::theme::Text::Color(iced::Color::from_rgb(
+                            0.9, 0.3, 0.3,
+                        ))),
+                    );
+                }
+
+                let file_button = button(entry_col.spacing(2))
                     .style(if is_selected {
                         iced::theme::Button::Primary
                     } else {
@@ -453,13 +540,21 @@ impl Application for PdfMergerApp {
 async fn merge_pdfs_async_with_progress(
     file_paths: Vec<PathBuf>,
     output_path: PathBuf,
+    progress: Option<Arc<ProgressState>>,
 ) -> Result<(), String> {
     let total_files = file_paths.len();
-    
+
     // Run the merge operation in a blocking task
-    // Progress updates are shown through status messages
     tokio::task::spawn_blocking(move || {
-        merge_pdfs_with_progress(file_paths, output_path, total_files)
+        let mut callback = progress.map(|p| {
+            move |current: usize, _total: usize, path: &PathBuf| {
+                p.current.store(current, Ordering::Relaxed);
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    *p.last_file.lock() = name.to_string();
+                }
+            }
+        });
+        merge_pdfs_with_progress(file_paths, output_path, total_files, callback)
     })
     .await
     .map_err(|e| format!("Task error: {}", e))?
@@ -478,5 +573,35 @@ fn format_size(bytes: u64) -> String {
         format!("{:.0} KB", b / KB)
     } else {
         format!("{:.0} B", b)
+    }
+}
+
+fn validate_inputs(paths: &[PathBuf]) -> Option<String> {
+    for path in paths {
+        if !path.exists() {
+            return Some(format!("File not found: {}", path.display()));
+        }
+        if path.metadata().map(|m| m.len()).unwrap_or(0) == 0 {
+            return Some(format!("File is empty: {}", path.display()));
+        }
+        if path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("pdf".to_string()) {
+            return Some(format!("Not a PDF: {}", path.display()));
+        }
+    }
+    None
+}
+
+impl PdfMergerApp {
+    fn add_files(&mut self, paths: Vec<PathBuf>) -> usize {
+        let mut added = 0;
+        for path in paths {
+            if self.files.iter().any(|f| f.path == path) {
+                continue;
+            }
+            let error = validate_inputs(&[path.clone()]);
+            self.files.push(FileEntry { path, error });
+            added += 1;
+        }
+        added
     }
 }
