@@ -25,8 +25,8 @@
 #### Basic Merge Test
 
 1. **Prepare Test PDFs:**
-   - Create or gather 2-3 simple PDF files
-   - Ensure they are not password-protected
+   - Create or gather 2-3 simple PDF files (non-password-protected)
+   - Include 1 empty file to confirm validation catches it
    - Note the page count of each file
 
 2. **Run the Application:**
@@ -35,12 +35,12 @@
    ```
 
 3. **Test Steps:**
-   - Click "Select Files" and choose your test PDFs
-   - Verify files appear in the list
-   - Use "Move Up" and "Move Down" to reorder
-   - Click "Merge PDFs"
+   - Click "Select Files" or drag/drop PDFs into the list
+   - Verify files appear with order numbers and sizes; validation errors should show inline
+   - Use "Move Up/Down" or "Top/Bottom" to reorder
+   - Click "Merge PDFs" (button should be disabled if any file is invalid)
    - Choose output location
-   - Verify the merged PDF is created
+   - Verify the merged PDF is created and the "Open Output Location" button appears
 
 4. **Verify Results:**
    - Open the merged PDF
@@ -71,6 +71,8 @@
 - Try merging a single PDF (should work)
 - Try merging PDFs with different page sizes
 - Test with PDFs that have bookmarks/outlines
+- Provide an empty file: merge should fail with a clear validation error
+- Try a non-PDF file: merge should fail before starting
 
 ### Known Limitations
 

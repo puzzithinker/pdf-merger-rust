@@ -4,12 +4,12 @@ A simple, modern **PDF Merger** desktop application for Windows built with Rust 
 
 ## Features
 
-- **Select Files**: Choose multiple PDF files at once.
-- **Reorder**: Move selected file **Up** or **Down** in the merge order.
-- **Remove Selected**: Remove any PDF from the list.
-- **Merge PDFs**: Choose an output file via **Save As** dialog.
-- **Status & Progress**: Status label and progress bar while merging.
-- **Error Handling**: Graceful errors for encrypted/corrupted PDFs and save failures.
+- **Select or Drag & Drop**: Choose multiple PDF files at once, or drag them into the list.
+- **Reorder**: Move files Up/Down or jump to Top/Bottom.
+- **List Management**: Remove selected item, clear the whole list, and see order + file size.
+- **Merge PDFs**: Choose an output file via Save As dialog; open the output location after merge.
+- **Status & Progress**: Live status text and progress polling during merge.
+- **Validation & Errors**: Early checks for missing/empty/non-PDF files; clear errors for encrypted/corrupted PDFs and save failures.
 
 ## Requirements
 
