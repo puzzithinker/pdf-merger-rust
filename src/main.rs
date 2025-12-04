@@ -452,26 +452,40 @@ impl Application for PdfMergerApp {
             move_down_btn.into()
         };
 
-        let move_top_btn = button(text("⇈").size(18))
-            .padding([8, 12])
-            .style(if move_top_enabled {
-                iced::theme::Button::Secondary
-            } else {
-                iced::theme::Button::Text
-            });
+        let move_top_btn = button(
+            row![
+                text("↑").size(14),
+                text("↑").size(14)
+            ]
+            .spacing(0)
+            .align_items(iced::Alignment::Center)
+        )
+        .padding([8, 10])
+        .style(if move_top_enabled {
+            iced::theme::Button::Secondary
+        } else {
+            iced::theme::Button::Text
+        });
         let move_top_btn: Element<Message> = if move_top_enabled {
             move_top_btn.on_press(Message::MoveTop).into()
         } else {
             move_top_btn.into()
         };
 
-        let move_bottom_btn = button(text("⇊").size(18))
-            .padding([8, 12])
-            .style(if move_bottom_enabled {
-                iced::theme::Button::Secondary
-            } else {
-                iced::theme::Button::Text
-            });
+        let move_bottom_btn = button(
+            row![
+                text("↓").size(14),
+                text("↓").size(14)
+            ]
+            .spacing(0)
+            .align_items(iced::Alignment::Center)
+        )
+        .padding([8, 10])
+        .style(if move_bottom_enabled {
+            iced::theme::Button::Secondary
+        } else {
+            iced::theme::Button::Text
+        });
         let move_bottom_btn: Element<Message> = if move_bottom_enabled {
             move_bottom_btn.on_press(Message::MoveBottom).into()
         } else {
@@ -721,8 +735,35 @@ impl Application for PdfMergerApp {
             col
         };
 
+        // Add drop zone hint at bottom when files exist
+        let file_list_with_hint = if !self.files.is_empty() {
+            column![
+                file_list,
+                container(
+                    text("Drop more files here or use Add Files button")
+                        .size(12)
+                        .style(iced::theme::Text::Color(iced::Color::from_rgb(0.5, 0.5, 0.5)))
+                )
+                .width(Length::Fill)
+                .padding(10)
+                .center_x()
+                .style(|_theme: &Theme| container::Appearance {
+                    border: iced::Border {
+                        color: iced::Color::from_rgba(0.3, 0.3, 0.3, 0.3),
+                        width: 1.0,
+                        radius: 4.0.into(),
+                    },
+                    background: Some(iced::Background::Color(iced::Color::from_rgba(0.15, 0.15, 0.15, 0.3))),
+                    ..Default::default()
+                })
+            ]
+            .spacing(10)
+        } else {
+            column![file_list]
+        };
+
         let scrollable_list = scrollable(
-            container(file_list)
+            container(file_list_with_hint)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .padding(10),
