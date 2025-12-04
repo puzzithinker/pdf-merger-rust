@@ -1,0 +1,19 @@
+[package]
+name = "pdf-merger"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = { version = "0.12", features = ["tokio", "image"] }
+lopdf = "0.36"
+rfd = "0.14"
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
+printpdf = "0.7"
+
+[[bin]]
+name = "pdf-merger-cli"
+path = "src/cli.rs"
+
+[dev-dependencies]
+tempfile = "3"
+assert_cmd = "2"
