@@ -4,12 +4,37 @@ A simple, modern **PDF Merger** desktop application for Windows built with Rust 
 
 ## Features
 
+### Core Functionality
 - **Select or Drag & Drop**: Choose multiple PDF files at once, or drag them into the list.
-- **Reorder**: Move files Up/Down or jump to Top/Bottom.
+- **Reorder**: Move files Up/Down or jump to Top/Bottom with intuitive controls.
 - **List Management**: Remove selected item, clear the whole list, and see order + file size.
 - **Merge PDFs**: Choose an output file via Save As dialog; open the output location after merge.
-- **Status & Progress**: Live status text and progress polling during merge.
+- **Status & Progress**: Live status text with progress percentage display during merge.
 - **Validation & Errors**: Early checks for missing/empty/non-PDF files; clear errors for encrypted/corrupted PDFs and save failures.
+
+### Modern UI/UX
+- **Enhanced Empty State**: Beautiful drop zone with clear instructions and visual feedback
+- **Smart File List**:
+  - Numbered badges with color-coded selection
+  - PDF icons and file size display
+  - Prominent selection highlighting with blue border
+  - Inline error messages with warning icons
+  - Improved spacing for better readability
+- **Status Messages**: Color-coded status indicators with icons (success, error, info, processing)
+- **Progress Feedback**: Real-time percentage display during merge operations
+- **Professional Button Layout**:
+  - Grouped by function (File Management, Reorder, Primary Action)
+  - Icon-enhanced buttons for quick recognition
+  - Destructive actions visually separated for safety
+
+### Keyboard Shortcuts
+- **Ctrl/Cmd + O**: Add files
+- **Ctrl/Cmd + M**: Merge PDFs
+- **Delete/Backspace**: Remove selected file
+- **Arrow Up/Down**: Navigate file list
+- **Ctrl + Arrow Up/Down**: Move file up/down
+- **Home/End**: Jump to first/last file
+- **Ctrl + Home/End**: Move file to top/bottom
 
 ## Requirements
 

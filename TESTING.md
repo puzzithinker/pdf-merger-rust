@@ -20,6 +20,43 @@
    - Clear messages for corrupted files
    - Validation of PDF structure before merging
 
+## Automated Testing
+
+### Running Tests
+
+Run all unit and integration tests:
+
+```bash
+cargo test
+```
+
+Run tests with output:
+
+```bash
+cargo test -- --nocapture
+```
+
+### Test Coverage
+
+**Unit Tests (src/lib.rs):**
+- `test_merge_pdfs_function_exists`: Verifies function signature
+- `test_merge_empty_file_list`: Tests error handling for empty input
+- `test_merge_nonexistent_file`: Tests error handling for missing files
+- `test_progress_callback`: Tests callback structure
+- `test_output_path_validation`: Tests output file creation
+
+**Integration Tests:**
+- `cli_args.rs`: CLI argument validation
+- `cli_regression.rs`: CLI merge functionality
+- `merge_regression.rs`: Core merge without duplication
+- `merge_empty_pdf.rs`: Empty PDF file rejection
+- `validation_test.rs`: Input validation logic
+  - File existence checks
+  - Empty file detection
+  - Extension validation (case-insensitive)
+  - Multiple file validation
+  - Error message verification
+
 ### How to Test
 
 #### Basic Merge Test
