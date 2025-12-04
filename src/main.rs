@@ -401,7 +401,7 @@ impl Application for PdfMergerApp {
         // Primary action button - most prominent
         let select_files_btn = button(
             row![
-                text("📁").size(16),
+                text("+").size(20),
                 text("Add Files")
             ]
             .spacing(8)
@@ -502,7 +502,7 @@ impl Application for PdfMergerApp {
         // Destructive actions - visually separated
         let remove_btn = button(
             row![
-                text("🗑").size(14),
+                text("-").size(18),
                 text("Remove")
             ]
             .spacing(6)
@@ -522,7 +522,7 @@ impl Application for PdfMergerApp {
 
         let clear_btn = button(
             row![
-                text("✕").size(14),
+                text("×").size(18),
                 text("Clear All")
             ]
             .spacing(6)
@@ -543,7 +543,7 @@ impl Application for PdfMergerApp {
         // Primary CTA - larger and prominent
         let merge_btn = button(
             row![
-                text("⚡").size(18),
+                text("»").size(20),
                 text("Merge PDFs").size(16)
             ]
             .spacing(8)
@@ -590,11 +590,11 @@ impl Application for PdfMergerApp {
                 .push(
                     container(
                         column![
-                            text("📄").size(48),
+                            text("□").size(64),
                             text("Drag & drop PDF files here")
                                 .size(20)
                                 .style(iced::theme::Text::Color(iced::Color::from_rgb(0.8, 0.8, 0.8))),
-                            text("or click 'Select Files' button above")
+                            text("or click 'Add Files' button above")
                                 .size(14)
                                 .style(iced::theme::Text::Color(iced::Color::from_rgb(0.6, 0.6, 0.6))),
                             text("Supports multiple PDF files")
@@ -657,7 +657,7 @@ impl Application for PdfMergerApp {
 
                 let file_info_row = row![
                     number_badge,
-                    text("📄").size(16),
+                    text("▤").size(16),
                     column![
                         text(file_name).size(14).style(iced::theme::Text::Color(
                             if is_selected {
@@ -680,7 +680,7 @@ impl Application for PdfMergerApp {
                 if let Some(err) = &entry.error {
                     entry_col = entry_col.push(
                         row![
-                            text("⚠").size(14).style(iced::theme::Text::Color(iced::Color::from_rgb(1.0, 0.4, 0.4))),
+                            text("⚠").size(16).style(iced::theme::Text::Color(iced::Color::from_rgb(1.0, 0.4, 0.4))),
                             text(err).size(12).style(iced::theme::Text::Color(iced::Color::from_rgb(1.0, 0.4, 0.4)))
                         ]
                         .spacing(6)
@@ -860,19 +860,19 @@ fn format_size(bytes: u64) -> String {
 fn get_status_style(status: &str, is_merging: bool) -> (&'static str, iced::Color) {
     if is_merging {
         // Processing state - blue/cyan
-        ("⏳", iced::Color::from_rgba(0.2, 0.4, 0.6, 0.3))
+        ("⟳", iced::Color::from_rgba(0.2, 0.4, 0.6, 0.3))
     } else if status.starts_with("Error") || status.contains("not found") || status.contains("empty") || status.contains("Not a PDF") {
         // Error state - red
-        ("❌", iced::Color::from_rgba(0.6, 0.2, 0.2, 0.3))
+        ("✗", iced::Color::from_rgba(0.6, 0.2, 0.2, 0.3))
     } else if status.starts_with("Merge completed") || status.starts_with("Added") || status.contains("successfully") {
         // Success state - green
         ("✓", iced::Color::from_rgba(0.2, 0.6, 0.3, 0.3))
     } else if status.starts_with("Removed") || status.starts_with("Cleared") || status.starts_with("Moved") || status.contains("duplicates ignored") {
         // Info/action state - yellow/amber
-        ("ℹ", iced::Color::from_rgba(0.5, 0.4, 0.2, 0.3))
+        ("i", iced::Color::from_rgba(0.5, 0.4, 0.2, 0.3))
     } else {
         // Default/ready state - neutral
-        ("●", iced::Color::from_rgba(0.3, 0.3, 0.3, 0.3))
+        ("•", iced::Color::from_rgba(0.3, 0.3, 0.3, 0.3))
     }
 }
 
