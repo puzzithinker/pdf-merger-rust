@@ -3,6 +3,7 @@
 use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, progress_bar, row, scrollable, text, Column};
 use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
+use iced::window;
 use rfd::FileDialog;
 use std::fs;
 use std::path::PathBuf;
@@ -90,16 +91,13 @@ impl Application for PdfMergerApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        use iced::{event, subscription};
+        use iced::event;
         let mut subs = Vec::new();
 
         // File drop handling
-        let drop_sub = subscription::events_with(|event, _status| match event {
-            event::Event::Window(iced::event::WindowEvent::FileDropped(path)) => {
+        let drop_sub = event::listen_with(|event, _status| match event {
+            event::Event::Window(_, window::Event::FileDropped(path)) => {
                 Some(Message::FilesDropped(vec![path]))
-            }
-            event::Event::Window(iced::event::WindowEvent::FilesDropped(paths)) => {
-                Some(Message::FilesDropped(paths))
             }
             _ => None,
         });
@@ -546,7 +544,7 @@ async fn merge_pdfs_async_with_progress(
 
     // Run the merge operation in a blocking task
     tokio::task::spawn_blocking(move || {
-        let mut callback = progress.map(|p| {
+        let callback = progress.map(|p| {
             move |current: usize, _total: usize, path: &PathBuf| {
                 p.current.store(current, Ordering::Relaxed);
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {

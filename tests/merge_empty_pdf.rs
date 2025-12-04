@@ -24,7 +24,7 @@ fn rejects_empty_pdf_file() {
     fs::write(&empty, []).expect("write empty");
 
     let output = dir.path().join("merged.pdf");
-    let result = merge_pdfs_with_progress(vec![valid, empty], output, 2, None);
+    let result = merge_pdfs_with_progress::<fn(usize, usize, &PathBuf)>(vec![valid, empty], output, 2, None);
     assert!(
         result.is_err(),
         "expected merge to fail when encountering empty PDF"

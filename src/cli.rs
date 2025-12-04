@@ -20,7 +20,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    match merge_pdfs_with_progress(input_paths, output_path, args.len() - 2, None) {
+    match merge_pdfs_with_progress::<fn(usize, usize, &PathBuf)>(input_paths, output_path, args.len() - 2, None) {
         Ok(()) => println!("PDFs merged successfully!"),
         Err(e) => {
             eprintln!("Error: {}", e);
