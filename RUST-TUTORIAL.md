@@ -382,12 +382,21 @@ PDF merging can be time-consuming, so we perform it asynchronously to keep the U
 async fn merge_pdfs_async_with_progress(
     file_paths: Vec<PathBuf>,
     output_path: PathBuf,
+    progress: Option<Arc<ProgressState>>,
 ) -> Result<(), String> {
     let total_files = file_paths.len();
 
     // Run the merge operation in a blocking task
     tokio::task::spawn_blocking(move || {
-        merge_pdfs_with_progress(file_paths, output_path, total_files)
+        let mut callback = progress.map(|p| {
+            move |current: usize, _total: usize, path: &PathBuf| {
+                p.current.store(current, Ordering::Relaxed);
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    *p.last_file.lock() = name.to_string();
+                }
+            }
+        });
+        merge_pdfs_with_progress(file_paths, output_path, total_files, callback)
     })
     .await
     .map_err(|e| format!("Task error: {}", e))?
@@ -423,6 +432,20 @@ if doc.is_encrypted() {
     ));
 }
 ```
+
+## Fixing the “duplicate pages” bug (beginner-friendly)
+
+**What went wrong:** Every PDF object (pages, fonts, etc.) has an ID. When we merge PDFs, those IDs must stay unique. The old code copied pages from each input PDF and then added a new page tree/catalog without updating `max_id` (the highest ID used so far). Because `max_id` was stale, the new objects reused IDs that were already taken by imported pages, overwriting references. Result: merging two 1-page PDFs produced 4 pages with repeats.
+
+**How we fixed it:**
+1. After importing objects from each source PDF, we immediately set `merged_doc.max_id` to the highest imported ID (we track this with `next_id` as we renumber).
+2. Only after updating `max_id` do we add the new page tree and catalog, so they get fresh IDs and don’t collide with pages.
+3. We build a clean page tree/catalog from the collected page object IDs and save the merged file.
+
+**Rules of thumb for safe merges:**
+- Always renumber imported objects to avoid collisions.
+- Update the “next free ID” (`max_id`) right after imports, before creating new objects.
+- Build a fresh page tree/catalog using those fresh IDs; don’t reuse page trees from inputs.
 
 The `?` operator propagates errors automatically, making error handling clean and readable.
 
